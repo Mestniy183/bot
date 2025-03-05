@@ -45,7 +45,7 @@ async function fetchData() {
   try {
     const response = await axios.get(apiUrl);
     return response.data;
-  } catch (arror) {
+  } catch (error) {
     console.error("Ошибка при получении данных:", error);
     return null;
   }
