@@ -81,9 +81,9 @@ async function checkForNewData(chatId) {
   }
 }
 
-setInterval(() => {
-  checkForNewData(process.env.ID);
-}, 10000);
+// setInterval(() => {
+//   checkForNewData(process.env.ID);
+// }, 10000);
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
