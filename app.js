@@ -72,8 +72,13 @@ async function checkForNewData(chatId) {
       console.log("No data");
       return;
     }
-
+    const existingIds = new Set(lastData.map(item => item.id));
+    const newData = data.filter(item => !existingIds.has(item.id));
     if (newData.length) {
+      console.log(`Найдено новых заказов: ${newData.length}`);
+      await sendOrders(chatId, newData);
+      lastData = data;
+      await saveData(lastData);
     }
   } catch (error) {
     console.error("Ошибка при проверке новых данных", error);
@@ -81,32 +86,35 @@ async function checkForNewData(chatId) {
   }
 }
 
-// setInterval(() => {
-//   checkForNewData(process.env.ID);
-// }, 10000);
+async function init(){
+  lastData = await loadData();
+  console.log("Бот запущен. Последние данные:", lastData.length);
+  setInterval(() => {
+    checkForNewData(chatId);
+  }, 10000);
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
   if (text === "/start") {
-    bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
-    checkForNewData(chatId);
+    bot.sendMessage(chatId, "Бот запущен, проверяем данные...");
+   await checkForNewData(chatId);
   } else if (text === "/orders") {
-    bot.sendMessage(chatId, `Отправляю все заказы...`);
-    const data = await fetchData();
-    console.log(data);
-    data.forEach((item, index) => {
-      setTimeout(() => {
-        const mes = `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
-        bot.sendMessage(chatId, mes);
-      }, index * 100);
-    });
+    bot.sendMessage(chatId, "Отправляю все заказы...");
+    try{
+      const data = await fetchData();
+      await sendOrders(chatId, data);
+    }catch (error){
+      bot.sendMessage(chatId, "Ошибка при загрузке заказа")ж
+    }
   } else {
-    bot.sendMessage(chatId, `Неизвестная команда...`);
+    bot.sendMessage(chatId, "Неизвестная команда...");
   }
 });
 
 bot.on("polling_error", (error) => {
   console.error(error);
 });
+}
+init();
