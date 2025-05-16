@@ -72,8 +72,8 @@ async function checkForNewData(chatId) {
       console.log("No data");
       return;
     }
-    const existingIds = new Set(lastData.map(item => item.id));
-    const newData = data.filter(item => !existingIds.has(item.id));
+    const existingIds = new Set(lastData.map((item) => item.id));
+    const newData = data.filter((item) => !existingIds.has(item.id));
     if (newData.length) {
       console.log(`Найдено новых заказов: ${newData.length}`);
       await sendOrders(chatId, newData);
@@ -86,35 +86,35 @@ async function checkForNewData(chatId) {
   }
 }
 
-async function init(){
+async function init() {
   lastData = await loadData();
   console.log("Бот запущен. Последние данные:", lastData.length);
   setInterval(() => {
     checkForNewData(chatId);
   }, 10000);
 
-bot.on("message", async (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
+  bot.on("message", async (msg) => {
+    const chatId = msg.chat.id;
+    const text = msg.text;
 
-  if (text === "/start") {
-    bot.sendMessage(chatId, "Бот запущен, проверяем данные...");
-   await checkForNewData(chatId);
-  } else if (text === "/orders") {
-    bot.sendMessage(chatId, "Отправляю все заказы...");
-    try{
-      const data = await fetchData();
-      await sendOrders(chatId, data);
-    }catch (error){
-      bot.sendMessage(chatId, "Ошибка при загрузке заказа")ж
+    if (text === "/start") {
+      bot.sendMessage(chatId, "Бот запущен, проверяем данные...");
+      await checkForNewData(chatId);
+    } else if (text === "/orders") {
+      bot.sendMessage(chatId, "Отправляю все заказы...");
+      try {
+        const data = await fetchData();
+        await sendOrders(chatId, data);
+      } catch (error) {
+        bot.sendMessage(chatId, "Ошибка при загрузке заказа");
+      }
+    } else {
+      bot.sendMessage(chatId, "Неизвестная команда...");
     }
-  } else {
-    bot.sendMessage(chatId, "Неизвестная команда...");
-  }
-});
+  });
 
-bot.on("polling_error", (error) => {
-  console.error(error);
-});
+  bot.on("polling_error", (error) => {
+    console.error(error);
+  });
 }
 init();
