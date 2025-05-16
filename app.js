@@ -5,14 +5,8 @@ const path = require("path");
 require("dotenv").config();
 
 const token = process.env.TOKEN;
-const apiUrl = process.env.API_URL;
-const chatId = process.env.ID;
-
-if (!token || !apiUrl || !chatId) {
-  throw new Error("Не заданы токены");
-}
-
 const bot = new TelegramBot(token, { polling: true });
+const apiUrl = process.env.API_URL;
 
 bot.setMyCommands([
   { command: "/start", description: "Запуск бота и получение данных" },
@@ -21,64 +15,60 @@ bot.setMyCommands([
 
 const dataFilePath = path.join(__dirname, "db.json");
 let lastData = [];
-
-async function loadData() {
-  try {
-    const data = await fs.readFile(dataFilePath, "utf8");
-    return data.trim() ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error("Ошибка при чтении db.json:", error);
-    return [];
+try {
+  if (fs.existsSync(dataFilePath)) {
+    const data = fs.readFileSync(dataFilePath, "utf8");
+    if (data.trim()) {
+      lastData = JSON.parse(data);
+    } else {
+      console.log("Файл db.json пустой. Инициализируем пустым массивом");
+      lastData = [];
+    }
+  } else {
+    console.log("Файл db.json не существует. Инициализируем пустым массивом");
+    lastData = [];
   }
+} catch (error) {
+  console.error("Ошибка при чтении файла db.json:", error);
+  lastData = [];
 }
 
-async function saveData(data) {
+function saveData(data) {
   try {
-    await fs.writeFile(dataFilePath, JSON.stringify(data, null, 2), "utf8");
+    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), "utf8");
   } catch (error) {
-    console.error("Ошибка при записи db.json:", error);
+    console.error("Ошибка при сохранении db.JSON", error);
   }
-}
-
-function formatOrderMessage(item) {
-  return `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
 }
 
 async function fetchData() {
   try {
     const response = await axios.get(apiUrl);
-    if (!response.data) throw new Error("Данные не получены");
     return response.data;
   } catch (error) {
     console.error("Ошибка при получении данных:", error);
-    throw error;
-  }
-}
-
-async function sendOrders(chatId, orders) {
-  const batchSize = 5;
-  for (let i = 0; i < orders.length; i += batchSize) {
-    const batch = orders.slice(i, i + batchSize);
-    await Promise.all(
-      batch.map((order) => bot.sendMessage(chatId, formatOrderMessage(order)))
-    );
+    return null;
   }
 }
 
 async function checkForNewData(chatId) {
   try {
     const data = await fetchData();
-    if (!data?.length) {
-      console.log("No data");
-      return;
-    }
-    const existingIds = new Set(lastData.map((item) => item.id));
-    const newData = data.filter((item) => !existingIds.has(item.id));
-    if (newData.length) {
-      console.log(`Найдено новых заказов: ${newData.length}`);
-      await sendOrders(chatId, newData);
-      lastData = data;
-      await saveData(lastData);
+    if (data && data.length > 0) {
+      const newData = data.filter((item) => {
+        return !lastData.some((lastItem) => lastItem.id === item.id);
+      });
+
+      if (newData.length > 0) {
+        newData.forEach((item) => {
+          const mes = `Пришёл новый заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
+          bot.sendMessage(chatId, mes);
+        });
+        lastData = data;
+        saveData(lastData);
+      }
+    } else {
+      console.log("Данные сервера отсутствуют или пустые");
     }
   } catch (error) {
     console.error("Ошибка при проверке новых данных", error);
@@ -86,35 +76,32 @@ async function checkForNewData(chatId) {
   }
 }
 
-async function init() {
-  lastData = await loadData();
-  console.log("Бот запущен. Последние данные:", lastData.length);
-  setInterval(() => {
+setInterval(() => {
+  checkForNewData(process.env.ID);
+}, 10000);
+
+bot.on("message", async (msg) => {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+
+  if (text === "/start") {
+    bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
     checkForNewData(chatId);
-  }, 10000);
+  } else if (text === "/orders") {
+    bot.sendMessage(chatId, `Отправляю все заказы...`);
+    const data = await fetchData();
+    console.log(data);
+    data.forEach((item, index) => {
+      setTimeout(() => {
+        const mes = `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
+        bot.sendMessage(chatId, mes);
+      }, index * 100);
+    });
+  } else {
+    bot.sendMessage(chatId, `Неизвестная команда...`);
+  }
+});
 
-  bot.on("message", async (msg) => {
-    const chatId = msg.chat.id;
-    const text = msg.text;
-
-    if (text === "/start") {
-      bot.sendMessage(chatId, "Бот запущен, проверяем данные...");
-      await checkForNewData(chatId);
-    } else if (text === "/orders") {
-      bot.sendMessage(chatId, "Отправляю все заказы...");
-      try {
-        const data = await fetchData();
-        await sendOrders(chatId, data);
-      } catch (error) {
-        bot.sendMessage(chatId, "Ошибка при загрузке заказа");
-      }
-    } else {
-      bot.sendMessage(chatId, "Неизвестная команда...");
-    }
-  });
-
-  bot.on("polling_error", (error) => {
-    console.error(error);
-  });
-}
-init();
+bot.on("polling_error", (error) => {
+  console.error(error);
+});
