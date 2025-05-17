@@ -3,6 +3,7 @@ const axios = require("axios");
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
+const { setInterval } = require("timers/promises");
 require("dotenv").config();
 
 const token = process.env.TOKEN;
@@ -90,6 +91,10 @@ app.post(`/bot${token}`, (req, res) => {
 app.get("/", (req, res) => {
   res.send("Телеграмбот запущен");
 });
+
+setInterval(() => {
+  checkForNewData(adminChatId);
+}, 30 * 1000);
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
