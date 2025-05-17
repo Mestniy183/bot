@@ -82,28 +82,49 @@ bot.setMyCommands([
   { command: "/orders", description: "Посмотреть все заказы" },
 ]);
 
-// bot.on("message", async (msg) => {
-//   const chatId = msg.chat.id;
-//   const text = msg.text;
+app.post(`/bot${token}`,(req,res) =>{
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+})
 
-//   if (text === "/start") {
-//     bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
-//     checkForNewData(chatId);
-//   } else if (text === "/orders") {
-//     bot.sendMessage(chatId, `Отправляю все заказы...`);
-//     const data = await fetchData();
-//     console.log(data);
-//     data.forEach((item, index) => {
-//       setTimeout(() => {
-//         const mes = `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
-//         bot.sendMessage(chatId, mes);
-//       }, index * 100);
-//     });
-//   } else {
-//     bot.sendMessage(chatId, `Неизвестная команда...`);
-//   }
-// });
+app.get('/'(req,res) =>{
+  res.send('Телеграмбот запущен');
+})
 
-// bot.on("polling_error", (error) => {
-//   console.error(error);
-// });
+ bot.on("message", async (msg) => {
+   const chatId = msg.chat.id;
+   const text = msg.text;
+
+   if (text === "/start") {
+     bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
+     checkForNewData(chatId);
+   } else if (text === "/orders") {
+     bot.sendMessage(chatId, `Отправляю все заказы...`);
+     const data = await fetchData();
+     if(!data || data.length === 0){
+      return bot.sendMessage(chatId, 'Заказов нет');
+     }
+
+     bot.sendMessage(chatId,`Всего заказов: ${data.length}`);
+     data.forEach((item, index) => {
+       setTimeout(() => {
+         const mes = `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
+         bot.sendMessage(chatId, mes);
+       }, index * 300);
+     });
+   } else {
+     bot.sendMessage(chatId, `Неизвестная команда...`);
+   }
+ });
+
+ app.listen(port, () =>{
+  console.log(`Сервер запущен на порту ${port}`);
+  console.log(`webhook URL: ${webhookURL}/bot${token}`);
+  if(adminChatId){
+    checkForNewData(adminChatId);
+  }
+ })
+
+ process.on("unhandledRejection", (error) => {
+   console.error(error);
+ });
