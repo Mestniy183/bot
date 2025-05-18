@@ -9,7 +9,7 @@ require("dotenv").config();
 const token = process.env.TOKEN;
 const apiUrl = process.env.API_URL;
 const adminChatId = process.env.ID;
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 4000;
 const webhookURL = process.env.WEBHOOK_URL;
 
 const bot = new TelegramBot(token, { webHook: { port: port } });
