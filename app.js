@@ -69,7 +69,7 @@ bot.on("message", async (msg) => {
       const orders = snapshot.val();
 
       if (!orders) {
-        return bor.sendMessage(chatId, "Заказов нет");
+        return bot.sendMessage(chatId, "Заказов нет");
       }
 
       await bot.sendMessage(
