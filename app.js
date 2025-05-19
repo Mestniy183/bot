@@ -1,122 +1,97 @@
 const TelegramBot = require("node-telegram-bot-api");
-const axios = require("axios");
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const { setInterval } = require("timers/promises");
+const admin = require("firebase-admin");
 require("dotenv").config();
 
 const token = process.env.TOKEN;
-const apiUrl = process.env.API_URL;
-const adminChatId = process.env.ID;
-const port = process.env.PORT;
-const webhookURL = process.env.WEBHOOK_URL;
-
-const bot = new TelegramBot(token, { webHook: { port: port } });
-
+const bot = new TelegramBot(token, { polling: false });
 const app = express();
-
-bot.setWebHook(`${webhookURL}/bot${token}`);
-
-app.use(express.json());
-
-const dataFilePath = path.join(__dirname, "db.json");
-let lastData = loadData();
-
-function loadData() {
-  try {
-    if (fs.existsSync(dataFilePath)) {
-      const data = fs.readFileSync(dataFilePath, "utf8");
-      return data.trim() ? JSON.parse(data) : [];
-    }
-    return [];
-  } catch (error) {
-    console.error("Ошибка при чтении файла db.json:", error);
-    return [];
-  }
-}
-
-function saveData(data) {
-  try {
-    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), "utf8");
-  } catch (error) {
-    console.error("Ошибка при сохранении db.JSON", error);
-  }
-}
-
-async function fetchData() {
-  try {
-    const response = await axios.get(apiUrl);
-    return response.data;
-  } catch (error) {
-    console.error("Ошибка при получении данных:", error);
-    return null;
-  }
-}
-
-async function checkForNewData(chatId) {
-  try {
-    const data = await fetchData();
-
-    if (!data || data.length === 0) return;
-
-    const newData = data.filter((item) => {
-      return !lastData.some((lastItem) => lastItem.id === item.id);
-    });
-
-    if (newData.length > 0) {
-      newData.forEach((item) => {
-        const mes = `Пришёл новый заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
-        bot.sendMessage(chatId, mes);
-      });
-      lastData = data;
-      saveData(lastData);
-    }
-  } catch (error) {
-    console.error("Ошибка при проверке новых данных", error);
-    bot.sendMessage(chatId, "Ошибка при проверке новых данных");
-  }
-}
+const adminChatId = process.env.ID;
+const port = process.env.PORT || 3000;
+const webhookURL = process.env.WEBHOOK_URL;
 
 bot.setMyCommands([
   { command: "/start", description: "Запуск бота и получение данных" },
   { command: "/orders", description: "Посмотреть все заказы" },
 ]);
 
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: process.env.FIREBASE_DB_URL,
+});
+
+const db = admin.database();
+
+bot.setWebHook(`${webhookURL}/bot${token}`);
+
+app.use(express.json());
+
 app.post(`/bot${token}`, (req, res) => {
   bot.processUpdate(req.body);
   res.sendStatus(200);
 });
 
-app.get("/", (req, res) => {
-  res.send("Телеграмбот запущен");
-});
+function setupOrderListener() {
+  const ordersRef = db.ref("orders");
 
-setInterval(() => {
-  checkForNewData(adminChatId);
-}, 30 * 1000);
+  ordersRef.on("child_added", async (snapshot) => {
+    const order = snapshot.val();
+
+    if (!order.processed) {
+      const message = `Новый заказ №${order.id}:\n
+    Дата: ${order.date}\n
+    Имя: ${order.name}\n
+    Телефон: ${order.phone}\n
+    Сообщение: ${order.message || "No message"} 
+    `;
+      try {
+        await bot.sendMessage(adminChatId, message);
+
+        await snapshot.ref.update({ processed: true });
+      } catch (error) {
+        console.error("Ошибка отправки уведомления", error);
+      }
+    }
+  });
+}
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
   if (text === "/start") {
-    bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
-    checkForNewData(chatId);
+    await bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
   } else if (text === "/orders") {
-    bot.sendMessage(chatId, `Отправляю все заказы...`);
-    const data = await fetchData();
-    if (!data || data.length === 0) {
-      return bot.sendMessage(chatId, "Заказов нет");
-    }
+    try {
+      const snapshot = await db.ref("orders").once("value");
+      const orders = snapshot.val();
 
-    bot.sendMessage(chatId, `Всего заказов: ${data.length}`);
-    data.forEach((item, index) => {
-      setTimeout(() => {
-        const mes = `Заказ ${item.id}:\nДата: ${item.date}\nИмя: ${item.name}\nТелефон: ${item.phone}\nСообщение: ${item.message}`;
-        bot.sendMessage(chatId, mes);
-      }, index * 300);
-    });
+      if (!orders) {
+        return bor.sendMessage(chatId, "Заказов нет");
+      }
+
+      await bot.sendMessage(
+        chatId,
+        `Всего заказов: ${Object.keys(orders).length}`
+      );
+
+      Object.values(orders).forEach((order, index) => {
+        setTimeout(() => {
+          const orderMsg = `заказ №${order.id}:\n
+          Дата: ${order.date}\n
+          Имя: ${order.name}\n
+          Телефон: ${order.phone}\n
+          Сообщение: ${order.message || "No message"} 
+          `;
+          bot.sendMessage(chatId, orderMsg);
+        }, index * 300);
+      });
+    } catch (error) {
+      console.error("Ошибка получения заказов:", error);
+      bot.sendMessage(chatId, "Ошибка при получении заказов");
+    }
   } else {
     bot.sendMessage(chatId, `Неизвестная команда...`);
   }
@@ -125,9 +100,16 @@ bot.on("message", async (msg) => {
 app.listen(port, () => {
   console.log(`Сервер запущен на порту ${port}`);
   console.log(`webhook URL: ${webhookURL}/bot${token}`);
-  if (adminChatId) {
-    checkForNewData(adminChatId);
-  }
+
+  setupOrderListener();
+
+  db.ref(".info/connected").on("value", (snapshot) => {
+    if (snapshot.val() === true) {
+      console.log("Подключено к бд");
+    } else {
+      console.log("Нет подключения к бд.");
+    }
+  });
 });
 
 process.on("unhandledRejection", (error) => {
