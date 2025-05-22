@@ -78,6 +78,8 @@ bot.on("message", async (msg) => {
       );
 
       Object.values(orders).forEach((order, index) => {
+        console.log("Order", order);
+        console.log(index);
         setTimeout(() => {
           const orderMsg = `заказ №${order.id}:\n
           Дата: ${order.date}\n
