@@ -38,7 +38,7 @@ function setupOrderListener() {
 
   ordersRef.on("child_added", async (snapshot) => {
     const order = snapshot.val();
-
+    console.log(order);
     if (!order.processed) {
       const message = `Новый заказ №${order.id}:\n
     Дата: ${order.date}\n
