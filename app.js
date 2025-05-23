@@ -47,8 +47,20 @@ function setupOrderListener() {
         Сообщение: ${order.message || "No message"} 
       `;
       try {
+        const replyMarkup = {
+          inline_keyboard: [
+            [
+              {
+                text: "Написать клиенту",
+                url: `https://t.me/+${order.phone.replace(/\D/g, "")}`,
+              },
+            ],
+          ],
+        };
+
         await bot.sendMessage(adminChatId, message, {
           parse_mode: "Markdown",
+          reply_markup: replyMarkup,
         });
 
         await snapshot.ref.update({ processed: true, id: orderId });
