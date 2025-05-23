@@ -47,12 +47,17 @@ function setupOrderListener() {
         Сообщение: ${order.message || "No message"} 
       `;
       try {
+        const cleanPhone = order.phone.replace(/\D/g, "");
         const replyMarkup = {
           inline_keyboard: [
             [
               {
-                text: "Написать клиенту",
-                url: `https://t.me/+${order.phone.replace(/\D/g, "")}`,
+                text: "Написать в тг",
+                url: `https://t.me/+${cleanPhone}`,
+              },
+              {
+                text: "Написать в WA",
+                url: `https://wa.me/${cleanPhone}`,
               },
             ],
           ],
