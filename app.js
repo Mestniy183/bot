@@ -41,11 +41,11 @@ function setupOrderListener() {
     const orderId = snapshot.key;
     if (!order.processed) {
       const message = `Новый заказ №${orderId}:\n
-    Дата: ${order.date}\n
-    Имя: ${order.name}\n
-    Телефон: ${order.phone}\n
-    Сообщение: ${order.message || "No message"} 
-    `;
+        Дата: ${order.date}\n
+        Имя: ${order.name}\n
+        Телефон: ${order.phone}\n
+        Сообщение: ${order.message || "No message"} 
+      `;
       try {
         await bot.sendMessage(adminChatId, message, {
           parse_mode: "Markdown",
@@ -84,10 +84,10 @@ bot.on("message", async (msg) => {
         setTimeout(async () => {
           try {
             const orderMsg = `заказ №${orderId}:\n
-          Дата: ${order.date}\n
-          Имя: ${order.name}\n
-          Телефон: ${order.phone}\n
-          Сообщение: ${order.message || "No message"} 
+              Дата: ${order.date}\n
+              Имя: ${order.name}\n
+              Телефон: ${order.phone}\n
+              Сообщение: ${order.message || "No message"} 
           `;
             await bot.sendMessage(chatId, orderMsg, {
               parse_mode: "Markdown",
