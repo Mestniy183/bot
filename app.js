@@ -38,9 +38,9 @@ function setupOrderListener() {
 
   ordersRef.on("child_added", async (snapshot) => {
     const order = snapshot.val();
-    console.log(order);
+    const orderId = snapshot.key;
     if (!order.processed) {
-      const message = `Новый заказ №${order.id}:\n
+      const message = `Новый заказ №${orderId}:\n
     Дата: ${order.date}\n
     Имя: ${order.name}\n
     Телефон: ${order.phone}\n
