@@ -47,9 +47,11 @@ function setupOrderListener() {
     Сообщение: ${order.message || "No message"} 
     `;
       try {
-        await bot.sendMessage(adminChatId, message);
+        await bot.sendMessage(adminChatId, message, {
+          parse_mode: "Markdown",
+        });
 
-        await snapshot.ref.update({ processed: true });
+        await snapshot.ref.update({ processed: true, id: orderId });
       } catch (error) {
         console.error("Ошибка отправки уведомления", error);
       }
@@ -74,21 +76,26 @@ bot.on("message", async (msg) => {
 
       await bot.sendMessage(
         chatId,
-        `Всего заказов: ${Object.keys(orders).length}`
+        `Всего заказов: ${Object.keys(orders).length}`,
+        { parse_mode: "Markdown" }
       );
 
-      Object.values(orders).forEach((order, index) => {
-        console.log("Order", order);
-        console.log(index);
-        setTimeout(() => {
-          const orderMsg = `заказ №${order.id}:\n
+      Object.entries(orders).forEach(([orderId, order], index) => {
+        setTimeout(async () => {
+          try {
+            const orderMsg = `заказ №${orderId}:\n
           Дата: ${order.date}\n
           Имя: ${order.name}\n
           Телефон: ${order.phone}\n
           Сообщение: ${order.message || "No message"} 
           `;
-          bot.sendMessage(chatId, orderMsg);
-        }, index * 300);
+            await bot.sendMessage(chatId, orderMsg, {
+              parse_mode: "Markdown",
+            });
+          } catch (error) {
+            console.error(`Ошибка отправки заказа ${orderId}:`, error);
+          }
+        }, index * 500);
       });
     } catch (error) {
       console.error("Ошибка получения заказов:", error);
