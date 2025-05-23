@@ -106,8 +106,26 @@ bot.on("message", async (msg) => {
               Телефон: ${order.phone}\n
               Сообщение: ${order.message || "No message"} 
           `;
+
+            const cleanPhone = order.phone.replace(/\D/g, "");
+            const replyMarkup = {
+              inline_keyboard: [
+                [
+                  {
+                    text: "Написать в тг",
+                    url: `https://t.me/+${cleanPhone}`,
+                  },
+                  {
+                    text: "Написать в WA",
+                    url: `https://wa.me/${cleanPhone}`,
+                  },
+                ],
+              ],
+            };
+
             await bot.sendMessage(chatId, orderMsg, {
               parse_mode: "Markdown",
+              reply_markup: replyMarkup,
             });
           } catch (error) {
             console.error(`Ошибка отправки заказа ${orderId}:`, error);
