@@ -12,7 +12,8 @@ const webhookURL = process.env.WEBHOOK_URL;
 
 bot.setMyCommands([
   { command: "/start", description: "Запуск бота и получение данных" },
-  { command: "/orders", description: "Посмотреть все заказы" },
+  { command: "/orders", description: "Посмотреть заказы в работе" },
+  { command: "/completed", description: "Посмотреть выполненные заказы" },
 ]);
 
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -39,7 +40,7 @@ function setupOrderListener() {
   ordersRef.on("child_added", async (snapshot) => {
     const order = snapshot.val();
     const orderId = snapshot.key;
-    if (!order.processed) {
+    if (!order.processed && !order.complete) {
       const message = `Новый заказ №${orderId}:\n
         Дата: ${order.date}\n
         Имя: ${order.name}\n
@@ -60,6 +61,12 @@ function setupOrderListener() {
                 url: `https://wa.me/${cleanPhone}`,
               },
             ],
+            [
+              {
+                text: "✅ Завершить заказ",
+                callback_data: `complete_${orderId}`,
+              },
+            ],
           ],
         };
 
@@ -76,6 +83,58 @@ function setupOrderListener() {
   });
 }
 
+bot.on("callback_query", async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id;
+  const data = callbackQuery.data;
+  const messageId = callbackQuery.message.message_id;
+
+  if (data.startsWith("complete_")) {
+    const orderId = data.slice("_")[1];
+    try {
+      await db.ref(`orders/$(orderId)`).update({
+        completed: true,
+        completedAt: new Date().toISOString(),
+      });
+
+      const messageText = callbackQuery.message.text;
+      const newReplyMarkup = {
+        inline_keyboard: [
+          [
+            {
+              text: "Написать в тг",
+              url: `https://t.me/+${
+                callbackQuery.message.reply_markup.inline_keyboard[0][0].url.split(
+                  "+"
+                )[1]
+              }`,
+            },
+            {
+              text: "Написать в WA",
+              url: callbackQuery.message.reply_markup.inline_keyboard[0][1].url,
+            },
+          ],
+        ],
+      };
+
+      await bot.editMessageText(messageText, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: newReplyMarkup,
+      });
+
+      await bot.callbackQuery(callbackQuery.id, {
+        text: `Заказ №${orderId} отмечен как выполненный ✅`,
+      });
+      await bot.sendMessage(chatId, `Заказ №${orderId} успешно завершён`);
+    } catch (error) {
+      console.error("Ошибка при завершении заказа:", error);
+      await bot.answerCallbackQuery(callbackQuery.id, {
+        text: "❌ Ошибка при завершении заказа",
+      });
+    }
+  }
+});
+
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
@@ -84,16 +143,20 @@ bot.on("message", async (msg) => {
     await bot.sendMessage(chatId, `Бот запущен, проверяем данные...`);
   } else if (text === "/orders") {
     try {
-      const snapshot = await db.ref("orders").once("value");
+      const snapshot = await db
+        .ref("orders")
+        .orderByChild("completed")
+        .equalTo(false)
+        .once("value");
       const orders = snapshot.val();
 
       if (!orders) {
-        return bot.sendMessage(chatId, "Заказов нет");
+        return bot.sendMessage(chatId, "Заказов нет в работе");
       }
 
       await bot.sendMessage(
         chatId,
-        `Всего заказов: ${Object.keys(orders).length}`,
+        `Заказов в работе: ${Object.keys(orders).length}`,
         { parse_mode: "Markdown" }
       );
 
@@ -101,6 +164,72 @@ bot.on("message", async (msg) => {
         setTimeout(async () => {
           try {
             const orderMsg = `заказ №${orderId}:\n
+              Дата: ${order.date}\n
+              Имя: ${order.name}\n
+              Телефон: ${order.phone}\n
+              Сообщение: ${order.message || "No message"} 
+          `;
+
+            const cleanPhone = order.phone.replace(/\D/g, "");
+            const replyMarkup = {
+              inline_keyboard: [
+                [
+                  {
+                    text: "Написать в тг",
+                    url: `https://t.me/+${cleanPhone}`,
+                  },
+                  {
+                    text: "Написать в WA",
+                    url: `https://wa.me/${cleanPhone}`,
+                  },
+                ],
+                [
+                  {
+                    text: "✅ Завершить заказ",
+                    callback_data: `complete_${orderId}`,
+                  },
+                ],
+              ],
+            };
+
+            await bot.sendMessage(chatId, orderMsg, {
+              parse_mode: "Markdown",
+              reply_markup: replyMarkup,
+            });
+          } catch (error) {
+            console.error(`Ошибка отправки заказа ${orderId}:`, error);
+          }
+        }, index * 500);
+      });
+    } catch (error) {
+      console.error("Ошибка получения заказов:", error);
+      bot.sendMessage(chatId, "Ошибка при получении заказов");
+    }
+  } else if (text === "/completed") {
+    try {
+      const snapshot = await db
+        .ref("orders")
+        .orderByChild("completed")
+        .equalTo(true)
+        .once("value");
+      const orders = snapshot.val();
+
+      if (!orders) {
+        return bot.sendMessage(chatId, "Нет выполненных заказов");
+      }
+
+      await bot.sendMessage(
+        chatId,
+        `Выполненных заказов: ${Object.keys(orders).length}`,
+        { parse_mode: "Markdown" }
+      );
+
+      Object.entries(orders).forEach(([orderId, order], index) => {
+        setTimeout(async () => {
+          try {
+            const orderMsg = `заказ №${orderId} (Выполнен ${
+              order.completedAt || "дата неизвестна"
+            }):\n
               Дата: ${order.date}\n
               Имя: ${order.name}\n
               Телефон: ${order.phone}\n
