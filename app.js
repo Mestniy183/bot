@@ -90,9 +90,6 @@ bot.on("callback_query", async (callbackQuery) => {
 
   if (data.startsWith("complete_")) {
     const orderId = data.split("_")[1];
-    console.log("data", data);
-    console.log(orderId);
-    console.log(db.ref(`orders/${orderId}`));
     try {
       await db.ref(`orders/${orderId}`).update({
         completed: true,
