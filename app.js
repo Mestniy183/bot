@@ -40,7 +40,7 @@ function setupOrderListener() {
   ordersRef.on("child_added", async (snapshot) => {
     const order = snapshot.val();
     const orderId = snapshot.key;
-    if (!order.processed && !order.complete) {
+    if (!order.processed && !order.completed) {
       const message = `Новый заказ №${orderId}:\n
         Дата: ${order.date}\n
         Имя: ${order.name}\n
@@ -91,7 +91,7 @@ bot.on("callback_query", async (callbackQuery) => {
   if (data.startsWith("complete_")) {
     const orderId = data.slice("_")[1];
     try {
-      await db.ref(`orders/$(orderId)`).update({
+      await db.ref(`orders/${orderId}`).update({
         completed: true,
         completedAt: new Date().toISOString(),
       });
@@ -125,6 +125,7 @@ bot.on("callback_query", async (callbackQuery) => {
       await bot.callbackQuery(callbackQuery.id, {
         text: `Заказ №${orderId} отмечен как выполненный ✅`,
       });
+
       await bot.sendMessage(chatId, `Заказ №${orderId} успешно завершён`);
     } catch (error) {
       console.error("Ошибка при завершении заказа:", error);
