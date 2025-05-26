@@ -34,6 +34,10 @@ app.post(`/bot${token}`, (req, res) => {
   res.sendStatus(200);
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
+
 function setupOrderListener() {
   const ordersRef = db.ref("orders");
 
