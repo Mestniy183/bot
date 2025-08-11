@@ -170,6 +170,7 @@ bot.on("callback_query", async (callbackQuery) => {
       await bot.answerCallbackQuery(callbackQuery.id, {
         text: `Заказ №${orderId} был удалён`,
       });
+      await bot.sendMessage(chatId, `Заказ №${orderId} был удалён`);
     } catch (error) {
       console.error("Ошибка при удалении заказа:", error);
       await bot.answerCallbackQuery(callbackQuery.id, {
